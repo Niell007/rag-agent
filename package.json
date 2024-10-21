@@ -1,0 +1,24 @@
+{
+  "name": "rag-agent",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "start": "wrangler dev"
+  },
+  "devDependencies": {
+    "@babel/plugin-transform-runtime": "^7.25.7",
+    "@cloudflare/vitest-pool-workers": "^0.4.5",
+    "@cloudflare/workers-types": "^4.20240815.0",
+    "typescript": "^5.5.2",
+    "vitest": "^1.5.0",
+    "wrangler": "^3.81.0"
+  },
+  "dependencies": {
+    "@cloudflare/ai": "^1.2.2",
+    "@cloudflare/d1": "^1.4.1",
+    "@cloudflare/kv-asset-handler": "^0.3.4",
+    "base64-js": "^1.5.1",
+    "hono": "^4.6.5"
+  }
+}

@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notes | Cloudflare RAG</title>
+    <link rel="stylesheet" href="https://unpkg.com/water.css@2/out/water.css">
+    <script src="https://unpkg.com/htmx.org@1.9.3"></script>
+    <style>
+        :root {
+            --primary-color: #7c3aed;
+            --secondary-color: #4f46e5;
+            --background-color: #f3f4f6;
+        }
+
+        body {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: var(--background-color);
+        }
+
+        .notes-container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            margin: 20px 0;
+        }
+
+        .note-item {
+            padding: 20px;
+            margin: 10px 0;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            background: #f9fafb;
+            position: relative;
+            transition: all 0.2s ease;
+        }
+
+        .note-item:hover {
+            box-shadow: 0 2px 4px -1px rgb(0 0 0 / 0.1);
+            transform: translateY(-1px);
+        }
+
+        .note-content {
+            margin-right: 40px;
+            white-space: pre-wrap;
+        }
+
+        .note-timestamp {
+            font-size: 0.8em;
+            color: #6b7280;
+            margin-top: 10px;
+        }
+
+        .delete-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: transparent;
+            border: none;
+            color: #ef4444;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 4px;
+        }
+
+        .delete-button:hover {
+            background: #fee2e2;
+        }
+
+        .add-note-button {
+            display: inline-block;
+            background: var(--primary-color);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            text-decoration: none;
+            transition: background-color 0.2s;
+            margin-bottom: 20px;
+        }
+
+        .add-note-button:hover {
+            background: var(--secondary-color);
+            text-decoration: none;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #6b7280;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #6b7280;
+        }
+
+        .search-container {
+            margin-bottom: 20px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #e5e7eb;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+
+        .filters {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .filter-button {
+            background: transparent;
+            border: 1px solid #e5e7eb;
+            padding: 5px 15px;
+            border-radius: 15px;
+            cursor: pointer;
+        }
+
+        .filter-button.active {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        /* Animation for note deletion */
+        .note-item.deleting {
+            opacity: 0;
+            transform: translateX(100px);
+            transition: all 0.3s ease;
+        }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            background: #10b981;
+            color: white;
+            border-radius: 5px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            display: none;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Your Notes</h1>
+        <nav>
+            <small>
+                <a href="/ui">Chat</a> ・ <a href="/notes">Notes</a> ・ <a href="/write">Add Note</a>
+            </small>
+        </nav>
+    </header>
+
+    <main>
+        <div class="notes-container">
+            <a href="/write" class="add-note-button">+ Add New Note</a>
+
+            <div class="search-container">
+                <input
+                    type="text"
+                    class="search-input"
+                    placeholder="Search notes..."
+                    id="search-input"
+                >
+                <div class="filters">
+                    <button class="filter-button active" data-filter="all">All</button>
+                    <button class="filter-button" data-filter="recent">Recent</button>
+                    <button class="filter-button" data-filter="oldest">Oldest</button>
+                </div>
+            </div>
+
+            <div id="notes-list">
+                <div class="loading">Loading notes...</div>
+            </div>
+        </div>
+    </main>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        const notesList = document.getElementById('notes-list');
+        const searchInput = document.getElementById('search-input');
+        const filterButtons = document.querySelectorAll('.filter-button');
+        const toast = document.getElementById('toast');
+
+        let notes = [];
+        let currentFilter = 'all';
+
+        // Load notes on page load
+        loadNotes();
+
+        async function loadNotes() {
+            try {
+                const response = await fetch('/notes.json');
+                notes = await response.json();
+                renderNotes();
+            } catch (error) {
+                console.error('Failed to load notes:', error);
+                notesList.innerHTML = '<div class="empty-state">Failed to load notes. Please try again.</div>';
+            }
+        }
+
+        function renderNotes() {
+            if (!notes.length) {
+                notesList.innerHTML = `
+                    <div class="empty-state">
+                        <p>No notes yet. Click "Add New Note" to create one!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const searchTerm = searchInput.value.toLowerCase();
+            let filteredNotes = notes.filter(note =>
+                note.text.toLowerCase().includes(searchTerm)
+            );
+
+            // Apply filters
+            switch (currentFilter) {
+                case 'recent':
+                    filteredNotes.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                    break;
+                case 'oldest':
+                    filteredNotes.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+                    break;
+            }
+
+            notesList.innerHTML = filteredNotes.map(note => `
+                <div class="note-item" id="note-${note.id}">
+                    <div class="note-content">${escapeHtml(note.text)}</div>
+                    <div class="note-timestamp">
+                        ${new Date(note.created_at).toLocaleString()}
+                    </div>
+                    <button
+                        class="delete-button"
+                        onclick="deleteNote(${note.id})"
+                        aria-label="Delete note"
+                    >×</button>
+                </div>
+            `).join('');
+        }
+
+        async function deleteNote(id) {
+            const noteElement = document.getElementById(`note-${id}`);
+
+            try {
+                noteElement.classList.add('deleting');
+
+                const response = await fetch(`/notes/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                    notes = notes.filter(note => note.id !== id);
+                    renderNotes();
+                    showToast('Note deleted successfully');
+                } else {
+                    throw new Error('Failed to delete note');
+                }
+            } catch (error) {
+                console.error('Error deleting note:', error);
+                noteElement.classList.remove('deleting');
+                showToast('Failed to delete note', 'error');
+            }
+        }
+
+        function showToast(message, type = 'success') {
+            toast.textContent = message;
+            toast.style.display = 'block';
+            toast.style.background = type === 'success' ? '#10b981' : '#ef4444';
+
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 3000);
+        }
+
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // Event Listeners
+        searchInput.addEventListener('input', renderNotes);
+
+        filterButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                filterButtons.forEach(btn => btn.classList.remove('active'));
+                button.classList.add('active');
+                currentFilter = button.dataset.filter;
+                renderNotes();
+            });
+        });
+    </script>
+</body>
+</html>

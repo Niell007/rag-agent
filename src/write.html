@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Note | Cloudflare RAG</title>
+    <link rel="stylesheet" href="https://unpkg.com/water.css@2/out/water.css">
+    <script src="https://unpkg.com/htmx.org@1.9.3"></script>
+    <style>
+        :root {
+            --primary-color: #7c3aed;
+            --secondary-color: #4f46e5;
+            --background-color: #f3f4f6;
+        }
+
+        body {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: var(--background-color);
+        }
+
+        .write-container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            margin: 20px 0;
+        }
+
+        .editor {
+            width: 100%;
+            min-height: 300px;
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #e5e7eb;
+            border-radius: 5px;
+            resize: vertical;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .button-group button {
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .save-button {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+        }
+
+        .save-button:hover {
+            background: var(--secondary-color);
+        }
+
+        .cancel-button {
+            background: transparent;
+            border: 1px solid #e5e7eb;
+        }
+
+        .cancel-button:hover {
+            background: #f3f4f6;
+        }
+
+        .status-message {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            display: none;
+        }
+
+        .status-message.success {
+            background: #dcfce7;
+            color: #166534;
+            display: block;
+        }
+
+        .status-message.error {
+            background: #fee2e2;
+            color: #991b1b;
+            display: block;
+        }
+
+        .preview {
+            margin-top: 20px;
+            padding: 20px;
+            border: 1px solid #e5e7eb;
+            border-radius: 5px;
+            background: #f9fafb;
+        }
+
+        .preview-title {
+            margin-bottom: 10px;
+            color: #4b5563;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Add New Note</h1>
+        <nav>
+            <small>
+                <a href="/ui">Chat</a> ・ <a href="/notes">Notes</a> ・ <a href="/write">Add Note</a>
+            </small>
+        </nav>
+    </header>
+
+    <main>
+        <div class="write-container">
+            <div class="status-message" id="status-message"></div>
+
+            <textarea
+                id="editor"
+                class="editor"
+                placeholder="Start writing your note here..."
+            ></textarea>
+
+            <div class="preview">
+                <h3 class="preview-title">Preview</h3>
+                <div id="preview-content"></div>
+            </div>
+
+            <div class="button-group">
+                <button class="cancel-button" onclick="window.location.href='/notes'">Cancel</button>
+                <button class="save-button" id="save-button">Save Note</button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const editor = document.getElementById('editor');
+        const previewContent = document.getElementById('preview-content');
+        const saveButton = document.getElementById('save-button');
+        const statusMessage = document.getElementById('status-message');
+
+        // Live preview
+        editor.addEventListener('input', () => {
+            previewContent.textContent = editor.value;
+        });
+
+        // Save note
+        saveButton.addEventListener('click', async () => {
+            const text = editor.value.trim();
+            if (!text) {
+                showStatus('Please enter some content for your note.', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('/notes', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ text })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    showStatus(data.error, 'error');
+                } else {
+                    showStatus('Note saved successfully!', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/notes';
+                    }, 1500);
+                }
+            } catch (error) {
+                showStatus('Failed to save note. Please try again.', 'error');
+                console.error('Error:', error);
+            }
+        });
+
+        function showStatus(message, type) {
+            statusMessage.textContent = message;
+            statusMessage.className = `status-message ${type}`;
+            setTimeout(() => {
+                statusMessage.className = 'status-message';
+            }, 5000);
+        }
+    </script>
+</body>
+</html>

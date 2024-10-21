@@ -1,0 +1,20 @@
+name = "rag-agent"
+main = "src/index.js"
+compatibility_date = "2024-10-18"
+compatibility_flags = ["nodejs_compat"]
+
+[ai]
+binding = "AI"
+
+[observability]
+enabled = true
+
+[[vectorize]]
+binding = "VECTOR_INDEX"
+index_name = "vector-index-rag"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "database-rag-agent-preview"
+database_id = "b42ff7ad-b442-4d9a-9983-2dd5637c507e"
+
